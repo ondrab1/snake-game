@@ -1,27 +1,51 @@
 import pygame
 import time
+from typing import List
 from src.snake import Snake
 from src.food import Food
-from src.level import Level, TestLevel
+from src.level import Level, LevelList, SecondLevel
 from src.settings import Settings
-from typing import Union
 
 
 class Game:
+    END_GAME = 'end_game'
+    END_LEVEL = 'end_level'
+
     def __init__(self):
         self.speed: float = 1.0
-        self.level: Union[Level, None] = None
+        self.score: int = 0
+        self.level_index = 0
+
+    def set_initial_state(self):
+        self.speed: float = 1.0
+        self.score: int = 0
 
     def run(self) -> None:
-        self.load_level()
+        level_list: LevelList = LevelList()
+        level_index: int = 0
+        play_again: bool = True
 
+        total_levels: int = len(level_list.get_levels())
+
+        while play_again:
+            end_type = self.main(self.load_level(level_list.get_levels(), level_index))
+
+            if end_type == self.END_GAME:
+                play_again = False
+            elif end_type == self.END_LEVEL:
+                level_index += 1
+
+
+    def main(self, level: Level):
         screen = self.prepare_screen()
 
         end = False
+        end_type = None
+
         clock = pygame.time.Clock()
 
-        move: tuple = self.level.DEFAULT_MOVE
-        start_x, start_y = self.level.DEFAULT_POSITION
+        move: tuple = level.DEFAULT_MOVE
+        start_x, start_y = level.get_start_position(screen)
 
         snake: Snake = Snake(start_x, start_y)
 
@@ -35,6 +59,7 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     end = True
+                    end_type = self.END_GAME
 
                 # move set
                 if event.type == pygame.KEYDOWN:
@@ -56,7 +81,7 @@ class Game:
             snake.render(screen, move)
 
             # render walls
-            self.level.render(screen)
+            level.render(screen)
 
             # on collision with food
             if snake.in_collision_with(food.spawned):
@@ -64,11 +89,18 @@ class Game:
                 food.destroy()
                 food.spawn(screen)
                 self.speed += 0.1
+                self.score += 1
+                if self.score == level.SCORE_GOAL:
+                    end = True
+                    end_type = self.END_LEVEL
+
+                print('Score', self.score)
 
             # on collision with wall
-            for wall in self.level.walls:
+            for wall in level.walls:
                 if snake.in_collision_with(wall):
-                    print('wall collision')
+                    end = True
+                    end_type = self.END_GAME
 
             # display it
             pygame.display.flip()
@@ -76,8 +108,10 @@ class Game:
             # game speed
             time.sleep((300 / min(self.speed, Settings.MAX_SPEED)) / 1000)
 
-    def load_level(self):
-        self.level = TestLevel()
+        return end_type
+
+    def load_level(self, levels: List, level_index: int):
+        return levels[level_index]()
 
     def prepare_screen(self) -> pygame.Surface:
         pygame.init()
